@@ -23,12 +23,12 @@ class Product extends Model
         return $categories;
     }
 
-    public static function checkIfSkuUnique($product_sku){
-        $product = Product::where('sku', $product_sku)->get()->count();
-        if($product == 0){
-            return true;
-        }else{
+    public static function checkIfSkuUnique($product_sku,$product_id = null){
+
+        if(Product::where('sku',$product_sku)->where('id', '!=' , $product_id)->exists()){
             return false;
+        }else{
+            return true;
         }
     }
 }

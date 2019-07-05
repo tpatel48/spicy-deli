@@ -37,6 +37,17 @@ class ProductsController extends Controller
 
     }
 
+    //check if categories exist
+    function checkCategories($product_categories){
+        $result_flag = true;
+        foreach ($product_categories as $cat_id){
+            if(!Category::where('id',$cat_id)->exists()){
+                $result_flag = false;
+                break;
+            }
+        }
+        return $result_flag;
+    }
     /**
      * Store a newly created resource in storage.
      *
@@ -132,9 +143,76 @@ class ProductsController extends Controller
      * @param  \App\Product  $product
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Product $product)
+    public function update()
     {
-        //
+        try {
+            $input = request()->all();
+            $product_id = $input['id'];
+            $product_name = $input['name'];
+            $product_price = $input['price'];
+            $product_sku = $input['sku'];
+            $product_categories_values =  $input['categories']; //comma seperated
+            $product_categories = explode(',', $product_categories_values);
+            //check if product exist
+            $product = Product::find($product_id);
+
+            if($product === NULL){
+                return json_encode("Product with id -> ".$product_id." does not exist.");
+            }
+
+            //check if sku is unique
+            $is_sku_unique = Product::checkIfSkuUnique($product_sku,$product_id);
+
+            if($is_sku_unique){
+                //check categories
+                if(isset($product_categories_values)){
+                    $check_categories = $this->checkCategories($product_categories);
+                    if($check_categories === false){
+                        return json_encode("Categories provided are incorrect");
+                    }
+                }
+
+                //update product
+                if(isset($product_name)){
+                    $product->name = $product_name;
+                }
+                if(isset($product_sku)){
+                    $product->sku = $product_sku;
+                }
+                if(isset($product_price)){
+                    $product->price = $product_price;
+                }
+                $product->updated_at =  date('Y-m-d H:i:s');
+                $product->save();
+
+                //create product categories if user sent them in request
+                if(isset($check_categories)){
+                    //First delete existing categories
+                    $affectedRows = ProductCategorie::where('product_id', '=', $product_id)->delete();
+
+                    //Then save new categories
+                    foreach ($product_categories as $cat_id){
+                        $product_category = new ProductCategorie();
+                        $product_category->product_id = $product->id;
+                        $product_category->category_id = $cat_id;
+                        $product_category->save();
+                    }
+                }
+
+                return json_encode("Product with ID -> ".$product->id." updated.");
+
+            }else{
+                return json_encode("Product with sku -> ".$product_sku." already exist.");
+            }
+            //delete product category association first
+            $affectedRows = ProductCategorie::where('product_id', '=', $product_id)->delete();
+
+            //now delete product
+            Product::destroy($product_id);
+            return json_encode("Product id -> ".$product_id." deleted.");
+        }catch (\Exception $e){
+            return json_encode("Something went wrong. check -> ".$e->getMessage());
+        }
     }
 
     /**
